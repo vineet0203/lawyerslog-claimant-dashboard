@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 const getToken = () => localStorage.getItem('lawyerslog_token') || sessionStorage.getItem('lawyerslog_token');
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 const getLoggedInUser = () => {
   const rawUser = localStorage.getItem('lawyerslog_user') || sessionStorage.getItem('lawyerslog_user');
@@ -141,6 +142,10 @@ function CasesListing() {
 
   const isMyCases = activeSection === 'my-cases';
 
+  const goToAddCase = () => {
+    window.location.href = '/add-case';
+  };
+
   const displayCases = useMemo(() => {
     if (cases.length) return cases;
     return [
@@ -160,7 +165,7 @@ function CasesListing() {
     const loadCases = async () => {
       try {
         setLoading(true);
-        const response = await fetch('http://127.0.0.1:5001/api/cases', {
+        const response = await fetch(`${API_BASE}/api/cases`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         const data = await response.json();
@@ -200,7 +205,7 @@ function CasesListing() {
               <span className="menu-icon"><SidebarIcon type="my-cases" /></span>
               <span className={`menu-label ${activeSection === 'my-cases' ? 'menu-label-active' : ''}`}>My Cases</span>
             </button>
-            <button className={`menu-item ${activeSection === 'add-new-case' ? 'menu-item-active' : ''}`} type="button" onClick={() => setActiveSection('add-new-case')}>
+            <button className="menu-item" type="button" onClick={goToAddCase}>
               <span className="menu-icon"><SidebarIcon type="add" /></span>
               <span className="menu-label">Add New Case</span>
             </button>
@@ -269,7 +274,7 @@ function CasesListing() {
         <section className="cases-welcome">
           <h2>Welcome Back, {displayName}</h2>
           <p>{isMyCases ? 'Here is your case Overview' : `${sectionMeta[activeSection].label} module status`}</p>
-          <button className="add-case-btn">+ GET STARTED</button>
+          <button className="add-case-btn" type="button" onClick={goToAddCase}>+ GET STARTED</button>
         </section>
 
         {isMyCases ? (
