@@ -17,43 +17,28 @@ interface FileState {
   witnessDoc: File | null;
 }
 
-// ✅ ENV FIX
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
-// ✅ TOKEN
 const getToken = () =>
   localStorage.getItem('lawyerslog_token') ||
   sessionStorage.getItem('lawyerslog_token');
 
-// ✅ USER
 const getLoggedInUser = () => {
   const rawUser =
     localStorage.getItem('lawyerslog_user') ||
     sessionStorage.getItem('lawyerslog_user');
-
   if (rawUser) {
     try {
       const parsed = JSON.parse(rawUser);
       return {
-        name:
-          parsed?.name ||
-          parsed?.email?.split('@')[0] ||
-          'Claimant',
+        name: parsed?.name || parsed?.email?.split('@')[0] || 'Claimant',
         email: parsed?.email || '',
       };
     } catch {}
   }
-
-  return {
-    name:
-      localStorage.getItem('lawyerslog_user_name') ||
-      sessionStorage.getItem('lawyerslog_user_name') ||
-      'Claimant',
-    email: '',
-  };
+  return { name: 'Claimant', email: '' };
 };
 
-// ✅ INITIALS
 const getInitials = (name: string) => {
   const parts = name.trim().split(' ');
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
@@ -76,34 +61,18 @@ export const AddNewCase: React.FC = () => {
   });
 
   const { handleSubmit } = methods;
-
   const user = getLoggedInUser();
   const initials = getInitials(user.name);
 
-  // ✅ SCROLL FIX
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, []);
-
-  // ✅ SUBMIT (FULL FIXED)
   const onSubmit = async (data: CaseFormValues) => {
     setIsSubmitting(true);
-
     try {
       const token = getToken();
-
       if (!token) {
         alert('Login required');
         window.location.href = '/';
         return;
       }
-
-      console.log('API:', API_BASE); // debug
-
       const response = await fetch(`${API_BASE}/api/cases`, {
         method: 'POST',
         headers: {
@@ -112,24 +81,11 @@ export const AddNewCase: React.FC = () => {
         },
         body: JSON.stringify(data),
       });
-
       let result = {};
-      try {
-        result = await response.json();
-      } catch {}
-
+      try { result = await response.json(); } catch {}
       if (response.ok) {
         alert('Case submitted successfully');
-
         methods.reset();
-        setUploadedFiles({
-          medicalReport: null,
-          accidentPhotos: null,
-          insurancePolicy: null,
-          policeReport: null,
-          witnessDoc: null,
-        });
-
         window.location.href = '/cases';
       } else {
         alert((result as any)?.message || 'Error submitting case');
@@ -142,34 +98,86 @@ export const AddNewCase: React.FC = () => {
     }
   };
 
+  const logout = () => {
+    localStorage.removeItem('lawyerslog_token');
+    localStorage.removeItem('lawyerslog_user');
+    sessionStorage.removeItem('lawyerslog_token');
+    sessionStorage.removeItem('lawyerslog_user');
+    window.location.href = '/';
+  };
+
   return (
-    <div className="p-8 bg-[#F4F5F7] min-h-screen">
-      <h1 className="text-2xl font-bold mb-4">
-        Submitting New Case
-      </h1>
-
-      <StepIndicator currentStep={0} />
-
-      <FormProvider {...methods}>
-        <form onSubmit={handleSubmit(onSubmit)}>
-          <PersonalDetails />
-          <IncidentDetails />
-          <InsuranceInfo />
-          <MedicalInfo />
-          <SupportingDocuments onFilesChange={setUploadedFiles} />
-
-          <div className="text-center mt-6">
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="bg-red-600 text-white px-6 py-2 rounded"
-            >
-              {isSubmitting ? 'Submitting...' : 'Create Case'}
+    <main className="cases-page">
+      <aside className="cases-sidebar">
+        <div className="sidebar-top">
+          <div className="sidebar-logo">LAWYERSLOG</div>
+          <nav className="sidebar-menu">
+            <button className="menu-item" type="button" onClick={() => window.location.href = '/cases'}>
+              <span className="menu-label">My Cases</span>
             </button>
+            <button className="menu-item menu-item-active" type="button">
+              <span className="menu-label">Add New Case</span>
+            </button>
+            <button className="menu-item" type="button">
+              <span className="menu-label">Lawyer Matching</span>
+            </button>
+            <button className="menu-item" type="button">
+              <span className="menu-label">Case Tracking</span>
+            </button>
+            <button className="menu-item" type="button">
+              <span className="menu-label">Communication</span>
+            </button>
+            <button className="menu-item" type="button">
+              <span className="menu-label">Settlement</span>
+            </button>
+            <button className="menu-item" type="button">
+              <span className="menu-label">Case Closure</span>
+            </button>
+          </nav>
+        </div>
+        <div className="sidebar-footer">
+          <button className="logout-btn" onClick={logout}>
+            <span className="logout-label">Logout</span>
+          </button>
+          <div className="sidebar-profile">
+            <div className="profile-avatar">{initials}</div>
+            <div className="profile-details">
+              <div className="profile-name">{user.name}</div>
+              <div className="profile-link">View profile</div>
+            </div>
           </div>
-        </form>
-      </FormProvider>
-    </div>
+        </div>
+      </aside>
+
+      <section className="cases-content" style={{overflowY: 'auto'}}>
+        <header className="cases-header">
+          <h1>Submitting New Case</h1>
+          <div className="profile-mini">{user.name}</div>
+        </header>
+
+        <div className="p-8">
+          <StepIndicator currentStep={0} />
+          <FormProvider {...methods}>
+            <form onSubmit={handleSubmit(onSubmit)}>
+              <PersonalDetails />
+              <IncidentDetails />
+              <InsuranceInfo />
+              <MedicalInfo />
+              <SupportingDocuments onFilesChange={setUploadedFiles} />
+              <div className="text-center mt-6">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="bg-red-600 text-white px-6 py-2 rounded"
+                >
+                  {isSubmitting ? 'Submitting...' : 'Create Case'}
+                </button>
+              </div>
+            </form>
+          </FormProvider>
+        </div>
+      </section>
+    </main>
   );
 };
 
