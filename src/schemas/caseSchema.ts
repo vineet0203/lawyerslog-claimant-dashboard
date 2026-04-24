@@ -11,7 +11,7 @@ export const CaseSchema = z.object({
     errorMap: () => ({ message: 'Please select an incident type' })
   }),
   incidentDate: z.string().refine(d => !isNaN(Date.parse(d)), 'Invalid date'),
-  incidentLocation: z.string().min(5, 'Incident location required'),
+  incidentLocation: z.string().min(2, 'Incident location required'),
   policeReportAvail: z.enum(['yes', 'no'], {
     errorMap: () => ({ message: 'Please specify if police report is available' })
   }),
