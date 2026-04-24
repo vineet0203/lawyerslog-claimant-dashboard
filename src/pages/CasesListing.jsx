@@ -212,7 +212,7 @@ function CasesListing() {
           _id: item._id,
           caseId: item.caseId || `#Case${String(index + 1).padStart(3, '0')}`,
           title: item.incidentType ? item.incidentType.replaceAll('_', ' ') : 'General Case',
-          claimant: item.claimant || { name: 'N/A', phone: '-' },
+          claimant: { name: item.fullName || 'N/A', phone: item.phoneNumber || '-' },
           createdAt: item.createdAt,
           lawyer: item.lawyer || { name: '-' },
           status: item.status || 'submitted'
