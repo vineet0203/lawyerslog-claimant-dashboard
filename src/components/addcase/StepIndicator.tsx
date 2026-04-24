@@ -29,7 +29,7 @@ export const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep }) => 
                     : 'bg-[#F4F5F7] border-[#E4E5E9] text-[#A5A5A5]'
                 }`}
               >
-                {index + 1}
+                {index < currentStep ? '✓' : index + 1}
               </div>
               <span
                 className={`text-xs font-medium mt-2 text-center w-20 ${
@@ -40,7 +40,7 @@ export const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep }) => 
               </span>
             </div>
             {index < steps.length - 1 && (
-              <div className="flex-1 h-1 bg-[#D4D4D4] mx-2 mt-6" />
+              <div className={`flex-1 h-1 mx-2 mt-6 ${index < currentStep ? 'bg-[#CD0715]' : 'bg-[#D4D4D4]'}`} />
             )}
           </React.Fragment>
         ))}

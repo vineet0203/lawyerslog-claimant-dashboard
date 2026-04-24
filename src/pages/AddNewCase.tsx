@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { CaseSchema, CaseFormValues } from '../schemas/caseSchema';
@@ -17,7 +17,9 @@ interface FileState {
   witnessDoc: File | null;
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || '';
+const API_BASE =
+  (import.meta as ImportMeta & { env?: { VITE_API_URL?: string } }).env
+    ?.VITE_API_URL || '';
 
 const getToken = () =>
   localStorage.getItem('lawyerslog_token') ||
@@ -47,6 +49,12 @@ const getInitials = (name: string) => {
 
 export const AddNewCase: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingCase, setIsLoadingCase] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [editingCaseId] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('id');
+  });
   const [uploadedFiles, setUploadedFiles] = useState<FileState>({
     medicalReport: null,
     accidentPhotos: null,
@@ -58,11 +66,137 @@ export const AddNewCase: React.FC = () => {
   const methods = useForm<CaseFormValues>({
     resolver: zodResolver(CaseSchema),
     mode: 'onBlur',
+    defaultValues: {
+      fullName: '',
+      email: '',
+      phoneNumber: '',
+      address: '',
+      city: '',
+      state: '',
+      incidentType: undefined,
+      incidentDate: '',
+      incidentLocation: '',
+      policeReportAvail: undefined,
+      incidentDescription: '',
+      insuranceCompany: '',
+      policyNumber: '',
+      injuryDescription: '',
+    },
   });
 
-  const { handleSubmit } = methods;
+  const { handleSubmit, getFieldState, watch } = methods;
+  const hasLoadedEditCaseRef = useRef(false);
   const user = getLoggedInUser();
   const initials = getInitials(user.name);
+
+  useEffect(() => {
+    if (!editingCaseId || hasLoadedEditCaseRef.current) return;
+    hasLoadedEditCaseRef.current = true;
+
+    const token = getToken();
+    if (!token) return;
+
+    const loadCaseDetails = async () => {
+      setIsLoadingCase(true);
+      try {
+        const response = await fetch(`${API_BASE}/api/cases/${editingCaseId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const result = await response.json();
+        if (!response.ok || !result?.case) {
+          alert(result?.message || 'Unable to load case details');
+          return;
+        }
+
+        const caseData = result.case;
+        methods.reset({
+          fullName: caseData.fullName || '',
+          email: caseData.email || '',
+          phoneNumber: caseData.phoneNumber || '',
+          address: caseData.address || '',
+          city: caseData.city || '',
+          state: caseData.state || '',
+          incidentType: caseData.incidentType,
+          incidentDate: caseData.incidentDate ? new Date(caseData.incidentDate).toISOString().slice(0, 10) : '',
+          incidentLocation: caseData.incidentLocation || '',
+          policeReportAvail: caseData.policeReportAvail,
+          incidentDescription: caseData.incidentDescription || '',
+          insuranceCompany: caseData.insuranceCompany || '',
+          policyNumber: caseData.policyNumber || '',
+          injuryDescription: caseData.injuryDescription || '',
+        });
+      } catch (error) {
+        console.error(error);
+        alert('Unable to load case details');
+      } finally {
+        setIsLoadingCase(false);
+      }
+    };
+
+    loadCaseDetails();
+  }, [editingCaseId, methods]);
+
+  useEffect(() => {
+    const hasValue = (value: unknown) =>
+      typeof value === 'string' ? value.trim().length > 0 : Boolean(value);
+
+    const updateStepFromValues = (values: Partial<CaseFormValues>) => {
+      const personalValid =
+        hasValue(values.fullName) &&
+        hasValue(values.email) &&
+        hasValue(values.phoneNumber) &&
+        hasValue(values.address) &&
+        hasValue(values.city) &&
+        hasValue(values.state) &&
+        !getFieldState('fullName').invalid &&
+        !getFieldState('email').invalid &&
+        !getFieldState('phoneNumber').invalid &&
+        !getFieldState('city').invalid &&
+        !getFieldState('state').invalid;
+
+      const incidentValid =
+        hasValue(values.incidentType) &&
+        hasValue(values.incidentDate) &&
+        hasValue(values.incidentLocation) &&
+        hasValue(values.incidentDescription) &&
+        !getFieldState('incidentType').invalid &&
+        !getFieldState('incidentDate').invalid &&
+        !getFieldState('incidentLocation').invalid;
+
+      const insuranceValid =
+        hasValue(values.insuranceCompany) &&
+        hasValue(values.policyNumber) &&
+        !getFieldState('insuranceCompany').invalid &&
+        !getFieldState('policyNumber').invalid;
+
+      const medicalValid =
+        hasValue(values.injuryDescription) &&
+        !getFieldState('injuryDescription').invalid;
+
+      const policeValid =
+        hasValue(values.policeReportAvail) &&
+        !getFieldState('policeReportAvail').invalid;
+
+      const documentsValid = Object.values(uploadedFiles).some(Boolean);
+
+      const completedSteps = [personalValid, incidentValid, insuranceValid, medicalValid, policeValid, documentsValid];
+      const firstIncomplete = completedSteps.findIndex((done) => !done);
+      const nextStep = firstIncomplete === -1 ? 5 : firstIncomplete;
+
+      setCurrentStep((prev) => (prev === nextStep ? prev : nextStep));
+    };
+
+    updateStepFromValues(methods.getValues() as Partial<CaseFormValues>);
+
+    const subscription = watch((values) => {
+      updateStepFromValues(values as Partial<CaseFormValues>);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [watch, getFieldState, methods, uploadedFiles]);
 
   const onSubmit = async (data: CaseFormValues) => {
     setIsSubmitting(true);
@@ -73,19 +207,24 @@ export const AddNewCase: React.FC = () => {
         window.location.href = '/';
         return;
       }
-      const response = await fetch(`${API_BASE}/api/cases`, {
-        method: 'POST',
+      const isEditMode = Boolean(editingCaseId);
+      const response = await fetch(
+        isEditMode ? `${API_BASE}/api/cases/${editingCaseId}` : `${API_BASE}/api/cases`,
+        {
+        method: isEditMode ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(data),
-      });
+      }
+      );
       let result = {};
       try { result = await response.json(); } catch {}
       if (response.ok) {
-        alert('Case submitted successfully');
+        alert(editingCaseId ? 'Case updated successfully' : 'Case submitted successfully');
         methods.reset();
+        setCurrentStep(0);
         window.location.href = '/cases';
       } else {
         alert((result as any)?.message || 'Error submitting case');
@@ -156,8 +295,9 @@ export const AddNewCase: React.FC = () => {
         </header>
 
         <div className="p-8">
-          <StepIndicator currentStep={0} />
+          <StepIndicator currentStep={currentStep} />
           <FormProvider {...methods}>
+            {isLoadingCase ? <p className="mb-4">Loading case details...</p> : null}
             <form onSubmit={handleSubmit(onSubmit)}>
               <PersonalDetails />
               <IncidentDetails />

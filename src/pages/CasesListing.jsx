@@ -123,6 +123,7 @@ const SidebarIcon = ({ type }) => {
 
 function CasesListing() {
   const [cases, setCases] = useState([]);
+  const [hasFetched, setHasFetched] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeSection, setActiveSection] = useState('my-cases');
@@ -147,13 +148,45 @@ function CasesListing() {
   };
 
   const displayCases = useMemo(() => {
-    if (cases.length) return cases;
+    if (hasFetched) return cases;
     return [
       { caseId: '#Case001', title: 'Car Accident, Medical', claimant: { name: 'John Smith', phone: '0945464655' }, createdAt: '2025-12-11', lawyer: { name: 'John Smith' }, status: 'negotiation' },
       { caseId: '#Case002', title: 'Property Damage', claimant: { name: 'David', phone: '0945464655' }, createdAt: '2025-12-13', lawyer: { name: 'John Smith' }, status: 'negotiation' },
       { caseId: '#Case003', title: 'Medical Claim', claimant: { name: 'Robert', phone: '0945464655' }, createdAt: '2025-12-14', lawyer: { name: 'John Smith' }, status: 'closed' }
     ];
-  }, [cases]);
+  }, [cases, hasFetched]);
+
+  const handleDeleteCase = async (caseMongoId) => {
+    const token = getToken();
+    if (!token || !caseMongoId) return;
+
+    const shouldDelete = window.confirm('Are you sure you want to delete this case?');
+    if (!shouldDelete) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/api/cases/${caseMongoId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        alert(result?.message || 'Failed to delete case');
+        return;
+      }
+
+      setCases((prev) => prev.filter((item) => item._id !== caseMongoId));
+    } catch {
+      alert('Unable to connect to backend');
+    }
+  };
+
+  const handleEditCase = (caseMongoId) => {
+    if (!caseMongoId) return;
+    window.location.href = `/add-case?id=${caseMongoId}`;
+  };
 
   useEffect(() => {
     const token = getToken();
@@ -176,6 +209,7 @@ function CasesListing() {
         }
 
         const mapped = (data.cases || []).map((item, index) => ({
+          _id: item._id,
           caseId: item.caseId || `#Case${String(index + 1).padStart(3, '0')}`,
           title: item.incidentType ? item.incidentType.replaceAll('_', ' ') : 'General Case',
           claimant: item.claimant || { name: 'N/A', phone: '-' },
@@ -185,8 +219,10 @@ function CasesListing() {
         }));
 
         setCases(mapped);
+        setHasFetched(true);
       } catch {
         setError('Unable to connect to backend');
+        setHasFetched(true);
       } finally {
         setLoading(false);
       }
@@ -309,7 +345,26 @@ function CasesListing() {
                       <span>{item.lawyer?.name || '-'}</span>
                       <span>{item.claimant?.phone || '-'}</span>
                       <span className={statusClass(item.status)}>{labelStatus(item.status)}</span>
-                      <span className="row-actions">Edit Delete</span>
+                      <span className="row-actions">
+                        <span
+                          className="action-link action-link-edit"
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => handleEditCase(item._id)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleEditCase(item._id)}
+                        >
+                          Edit
+                        </span>
+                        <span
+                          className="action-link action-link-delete"
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => handleDeleteCase(item._id)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleDeleteCase(item._id)}
+                        >
+                          Delete
+                        </span>
+                      </span>
                     </div>
                   ))
                 : null}
